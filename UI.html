@@ -1,0 +1,632 @@
+
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1b1f26;
+      --text: #e8eaf0;
+      --accent: #f7c948;
+      --muted: #8a93a4;
+      --good: #2ecc71;
+      --bad: #e74c3c;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+
+    .flex {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .controls .btn {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #2a2f39;
+      background: #232833;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .controls .btn.primary { background: #2d7ff9; border-color: #2d7ff9; color: white; }
+    .controls .btn.warn { background: #b23b3b; border-color: #b23b3b; color: white; }
+    .controls .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-bar {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: black;
+      aspect-ratio: 3 / 4;
+    }
+
+    video, canvas.overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform-origin: center center;
+    }
+
+    .readout {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      font-size: 14px;
+    }
+    .readout .item {
+      background: #161a21;
+      border: 1px solid #2a2f39;
+      border-radius: 8px;
+      padding: 8px;
+    }
+
+    details.tuning summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tuning-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      gap: 10px;
+    }
+    .control {
+      background: #161a21;
+      border: 1px solid #2a2f39;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .control label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .control input[type="range"] {
+      width: 100%;
+    }
+
+    .downloads {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .downloads a {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #2a2f39;
+      background: #232833;
+      color: var(--text);
+      text-decoration: none;
+    }
+  </style>
+
+  <div class="app">
+    <div class="panel">
+      <div id="status" class="status-bar">Idle</div>
+    </div>
+
+    <div class="panel controls" style="margin-top: 12px;">
+      <div class="flex">
+        <button class="btn" id="btnBackCam">Start Camera, back</button>
+        <button class="btn" id="btnFrontCam">Start Camera, front</button>
+        <button class="btn warn" id="btnStopCam" disabled="">Stop Camera</button>
+
+        <button class="btn primary" id="btnRecord" disabled="">Record</button>
+        <button class="btn warn" id="btnStopRecord" disabled="">Stop</button>
+
+        <button class="btn" id="btnExportCSV" disabled="">Download CSV</button>
+        <button class="btn" id="btnClear">Clear Path</button>
+
+        <label class="flex" style="gap:6px; align-items:center;">
+          <input type="checkbox" id="mirrorPreview">
+          <span>Mirror preview</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel video-wrap" id="videoWrap">
+      <video id="video" playsinline="" muted=""></video>
+      <canvas class="overlay" id="overlay"></canvas>
+    </div>
+
+    <div class="panel" style="margin-top: 12px;">
+      <div class="readout">
+        <div class="item">Tracked points: <span id="trackedCount">0</span></div>
+        <div class="item">Recording: <span id="recState">No</span></div>
+        <div class="item">Video size: <span id="videoSize">-</span></div>
+        <div class="item">Detector: <span id="detectorInfo">HSV yellow</span></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top: 12px;">
+      <details class="tuning">
+        <summary>Detector Settings</summary>
+        <div class="tuning-grid" style="margin-top: 8px;">
+          <div class="control">
+            <label>Hue min (deg)</label>
+            <input type="range" min="0" max="180" value="40" id="hMin">
+            <div>Value: <span id="hMinVal">40</span></div>
+          </div>
+          <div class="control">
+            <label>Hue max (deg)</label>
+            <input type="range" min="0" max="180" value="75" id="hMax">
+            <div>Value: <span id="hMaxVal">75</span></div>
+          </div>
+          <div class="control">
+            <label>Sat min (0-1)</label>
+            <input type="range" min="0" max="1" step="0.01" value="0.4" id="sMin">
+            <div>Value: <span id="sMinVal">0.4</span></div>
+          </div>
+          <div class="control">
+            <label>Val min (0-1)</label>
+            <input type="range" min="0" max="1" step="0.01" value="0.5" id="vMin">
+            <div>Value: <span id="vMinVal">0.5</span></div>
+          </div>
+          <div class="control">
+            <label>Downsample width (px)</label>
+            <input type="range" min="160" max="640" step="20" value="320" id="procW">
+            <div>Value: <span id="procWVal">320</span></div>
+          </div>
+          <div class="control">
+            <label>Minimum pixel count</label>
+            <input type="range" min="10" max="2000" step="10" value="100" id="minCount">
+            <div>Value: <span id="minCountVal">100</span></div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel" style="margin-top: 12px;">
+      <div class="downloads">
+        <a id="videoDownload" href="#" download="yellow-tracker.mp4" style="display:none;">Download video</a>
+        <a id="csvDownload" href="#" download="positions.csv" style="display:none;">Download CSV</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let stream = null;
+    let recording = false;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    let analyzing = false;
+    let rafId = null;
+
+    const trackPoints = []; // {t, x, y} in video pixels
+    let startTimeMs = null;
+
+    // Elements
+    const statusEl = document.getElementById('status');
+    const videoEl = document.getElementById('video');
+    const overlayCanvas = document.getElementById('overlay');
+    const overlayCtx = overlayCanvas.getContext('2d', { alpha: true });
+    const videoSizeEl = document.getElementById('videoSize');
+    const trackedCountEl = document.getElementById('trackedCount');
+    const recStateEl = document.getElementById('recState');
+    const detectorInfoEl = document.getElementById('detectorInfo');
+
+    // Controls
+    const btnBackCam = document.getElementById('btnBackCam');
+    const btnFrontCam = document.getElementById('btnFrontCam');
+    const btnStopCam = document.getElementById('btnStopCam');
+    const btnRecord = document.getElementById('btnRecord');
+    const btnStopRecord = document.getElementById('btnStopRecord');
+    const btnExportCSV = document.getElementById('btnExportCSV');
+    const btnClear = document.getElementById('btnClear');
+    const videoDownloadLink = document.getElementById('videoDownload');
+    const csvDownloadLink = document.getElementById('csvDownload');
+    const mirrorPreview = document.getElementById('mirrorPreview');
+
+    // Detector params
+    const hMinInput = document.getElementById('hMin');
+    const hMaxInput = document.getElementById('hMax');
+    const sMinInput = document.getElementById('sMin');
+    const vMinInput = document.getElementById('vMin');
+    const procWInput = document.getElementById('procW');
+    const minCountInput = document.getElementById('minCount');
+
+    const hMinVal = document.getElementById('hMinVal');
+    const hMaxVal = document.getElementById('hMaxVal');
+    const sMinVal = document.getElementById('sMinVal');
+    const vMinVal = document.getElementById('vMinVal');
+    const procWVal = document.getElementById('procWVal');
+    const minCountVal = document.getElementById('minCountVal');
+
+    const params = {
+      hMin: Number(hMinInput.value),
+      hMax: Number(hMaxInput.value),
+      sMin: Number(sMinInput.value),
+      vMin: Number(vMinInput.value),
+      procW: Number(procWInput.value),
+      minCount: Number(minCountInput.value)
+    };
+
+    hMinInput.addEventListener('input', () => { params.hMin = Number(hMinInput.value); hMinVal.textContent = String(params.hMin); });
+    hMaxInput.addEventListener('input', () => { params.hMax = Number(hMaxInput.value); hMaxVal.textContent = String(params.hMax); });
+    sMinInput.addEventListener('input', () => { params.sMin = Number(sMinInput.value); sMinVal.textContent = String(params.sMin.toFixed(2)); });
+    vMinInput.addEventListener('input', () => { params.vMin = Number(vMinInput.value); vMinVal.textContent = String(params.vMin.toFixed(2)); });
+    procWInput.addEventListener('input', () => { params.procW = Number(procWInput.value); procWVal.textContent = String(params.procW); resizeCanvases(); });
+    minCountInput.addEventListener('input', () => { params.minCount = Number(minCountInput.value); minCountVal.textContent = String(params.minCount); });
+
+    // Hidden processing canvas
+    const procCanvas = document.createElement('canvas');
+    const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+
+    // Utilities
+    function setStatus(text) {
+      statusEl.textContent = text;
+      console.log('[status]', text);
+    }
+
+    function updateUI() {
+      trackedCountEl.textContent = String(trackPoints.length);
+      recStateEl.textContent = recording ? 'Yes' : 'No';
+
+      btnStopCam.disabled = !stream;
+      btnRecord.disabled = !stream || recording;
+      btnStopRecord.disabled = !recording;
+      btnExportCSV.disabled = trackPoints.length === 0;
+
+      videoDownloadLink.style.display = recordedChunks.length ? 'inline-block' : 'none';
+      csvDownloadLink.style.display = trackPoints.length ? 'inline-block' : 'none';
+    }
+
+    function clearPath() {
+      trackPoints.length = 0;
+      drawOverlay();
+      updateUI();
+    }
+
+    function resizeCanvases() {
+      const vw = videoEl.videoWidth || 0;
+      const vh = videoEl.videoHeight || 0;
+      if (vw && vh) {
+        // Overlay canvas matches video pixel size, then CSS scales to fit container
+        overlayCanvas.width = vw;
+        overlayCanvas.height = vh;
+
+        const aspect = vw / vh;
+        const targetW = params.procW;
+        const targetH = Math.round(targetW / aspect);
+        procCanvas.width = targetW;
+        procCanvas.height = targetH;
+
+        videoSizeEl.textContent = `${vw} x ${vh}`;
+        setStatus(`Video ready at ${vw} x ${vh}, proc ${targetW} x ${targetH}`);
+      }
+    }
+
+    function hsvFromRgb(r, g, b) {
+      const rn = r / 255, gn = g / 255, bn = b / 255;
+      const max = Math.max(rn, gn, bn);
+      const min = Math.min(rn, gn, bn);
+      const delta = max - min;
+
+      let h = 0;
+      if (delta !== 0) {
+        if (max === rn) h = 60 * (((gn - bn) / delta) % 6);
+        else if (max === gn) h = 60 * (((bn - rn) / delta) + 2);
+        else h = 60 * (((rn - gn) / delta) + 4);
+      }
+      if (h < 0) h += 360;
+      const s = max === 0 ? 0 : delta / max;
+      const v = max;
+      return { h, s, v };
+    }
+
+    function detectYellowCentroid() {
+      const vw = videoEl.videoWidth;
+      const vh = videoEl.videoHeight;
+      if (!vw || !vh) return null;
+
+      // Draw scaled frame into processing canvas
+      procCtx.drawImage(videoEl, 0, 0, procCanvas.width, procCanvas.height);
+      const img = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
+      const data = img.data;
+
+      let sumX = 0, sumY = 0, count = 0;
+
+      // Iterate pixels
+      // RGBA order in ImageData is [r,g,b,a]
+      for (let y = 0; y < procCanvas.height; y++) {
+        const rowOffset = y * procCanvas.width * 4;
+        for (let x = 0; x < procCanvas.width; x++) {
+          const idx = rowOffset + x * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+          if (a === 0) continue;
+
+          const { h, s, v } = hsvFromRgb(r, g, b);
+
+          // Yellow around 50-70 deg; threshold range adjustable
+          if (h >= params.hMin && h <= params.hMax && s >= params.sMin && v >= params.vMin) {
+            sumX += x;
+            sumY += y;
+            count++;
+          }
+        }
+      }
+
+      if (count < params.minCount) return null;
+
+      // Map centroid up to video pixel coordinates
+      const cx = sumX / count;
+      const cy = sumY / count;
+      const scaleX = videoEl.videoWidth / procCanvas.width;
+      const scaleY = videoEl.videoHeight / procCanvas.height;
+      return { x: cx * scaleX, y: cy * scaleY, count };
+    }
+
+    function drawOverlay() {
+      const vw = videoEl.videoWidth;
+      const vh = videoEl.videoHeight;
+      if (!vw || !vh) return;
+
+      overlayCtx.clearRect(0, 0, vw, vh);
+
+      // Path
+      if (trackPoints.length > 1) {
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeStyle = '#f7c948';
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(trackPoints[0].x, trackPoints[0].y);
+        for (let i = 1; i < trackPoints.length; i++) {
+          overlayCtx.lineTo(trackPoints[i].x, trackPoints[i].y);
+        }
+        overlayCtx.stroke();
+      }
+
+      // Last centroid
+      const last = trackPoints[trackPoints.length - 1];
+      if (last) {
+        overlayCtx.fillStyle = '#2d7ff9';
+        overlayCtx.beginPath();
+        overlayCtx.arc(last.x, last.y, 6, 0, Math.PI * 2);
+        overlayCtx.fill();
+      }
+    }
+
+    function analysisLoop() {
+      if (!analyzing) return;
+
+      try {
+        const centroid = detectYellowCentroid();
+        const nowMs = performance.now();
+
+        if (recording && centroid) {
+          if (startTimeMs === null) startTimeMs = nowMs;
+          const t = (nowMs - startTimeMs) / 1000.0;
+          trackPoints.push({ t, x: centroid.x, y: centroid.y });
+          trackedCountEl.textContent = String(trackPoints.length);
+        }
+
+        drawOverlay();
+      } catch (err) {
+        console.error('Analysis error:', err);
+        setStatus(`Analysis error: ${err.message}`);
+      }
+
+      rafId = requestAnimationFrame(analysisLoop);
+    }
+
+    async function startCamera(facingMode) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('getUserMedia not supported. Use Safari or Chrome and HTTPS.');
+        return;
+      }
+
+      try {
+        // Stop any existing
+        stopCamera();
+
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoEl.srcObject = stream;
+        await videoEl.play();
+
+        // Mirror if front selected and toggle enabled
+        updateMirror();
+
+        // When metadata is ready, size canvases
+        if (videoEl.readyState >= 1) {
+          resizeCanvases();
+        } else {
+          videoEl.onloadedmetadata = () => resizeCanvases();
+        }
+
+        analyzing = true;
+        analysisLoop();
+
+        setStatus(`Camera started, facingMode=${facingMode}`);
+        btnRecord.disabled = false;
+        btnStopCam.disabled = false;
+      } catch (err) {
+        console.error('Camera error:', err);
+        setStatus(`Camera error: ${err.message}`);
+      } finally {
+        updateUI();
+      }
+    }
+
+    function stopCamera() {
+      analyzing = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+
+      if (stream) {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        stream = null;
+      }
+      videoEl.srcObject = null;
+      setStatus('Camera stopped');
+      btnRecord.disabled = true;
+      btnStopCam.disabled = true;
+      updateUI();
+    }
+
+    function chooseMimeType() {
+      const candidates = [
+        'video/mp4;codecs=h264',
+        'video/mp4',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ];
+      for (const type of candidates) {
+        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
+          return type;
+        }
+      }
+      return '';
+    }
+
+    function startRecording() {
+      if (!stream) {
+        setStatus('Start the camera first.');
+        return;
+      }
+      if (recording) return;
+
+      if (typeof MediaRecorder === 'undefined') {
+        setStatus('MediaRecorder not supported. You can still track, but video will not be saved.');
+        recording = true;
+        startTimeMs = null;
+        trackPoints.length = 0;
+        updateUI();
+        return;
+      }
+
+      try {
+        recordedChunks = [];
+        const mimeType = chooseMimeType();
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+        mediaRecorder.addEventListener('dataavailable', (e) => {
+          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        });
+
+        mediaRecorder.addEventListener('start', () => {
+          recording = true;
+          startTimeMs = null;
+          trackPoints.length = 0;
+          setStatus(`Recording started, mimeType=${mimeType || 'default'}`);
+          updateUI();
+        });
+
+        mediaRecorder.addEventListener('stop', () => {
+          recording = false;
+          setStatus('Recording stopped');
+          updateUI();
+
+          if (recordedChunks.length) {
+            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/mp4' });
+            const url = URL.createObjectURL(blob);
+            videoDownloadLink.href = url;
+            // Pick a reasonable extension for Safari or Chrome
+            const ext = (mediaRecorder.mimeType || '').includes('webm') ? 'webm' : 'mp4';
+            videoDownloadLink.download = `yellow-tracker.${ext}`;
+            videoDownloadLink.style.display = 'inline-block';
+          }
+        });
+
+        mediaRecorder.start(); // default timeslice, full file at stop
+      } catch (err) {
+        console.error('Recorder error:', err);
+        setStatus(`Recorder error: ${err.message}`);
+      } finally {
+        updateUI();
+      }
+    }
+
+    function stopRecording() {
+      if (!recording) return;
+
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      } else {
+        recording = false;
+        setStatus('Recording stopped, no MediaRecorder stream.');
+      }
+      updateUI();
+    }
+
+    function exportCSV() {
+      if (!trackPoints.length) {
+        setStatus('No tracked points to export.');
+        return;
+      }
+      let csv = 'time_s,x_px,y_px\n';
+      for (const p of trackPoints) {
+        csv += `${p.t.toFixed(6)},${p.x.toFixed(2)},${p.y.toFixed(2)}\n`;
+      }
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      csvDownloadLink.href = url;
+      csvDownloadLink.download = 'positions.csv';
+      csvDownloadLink.style.display = 'inline-block';
+      setStatus('CSV ready. Click Download CSV.');
+    }
+
+    function updateMirror() {
+      const mirrored = mirrorPreview.checked;
+      // Mirror video and overlay together
+      const scale = mirrored ? -1 : 1;
+      videoEl.style.transform = `scaleX(${scale})`;
+      overlayCanvas.style.transform = `scaleX(${scale})`;
+    }
+
+    // Wire UI
+    btnBackCam.addEventListener('click', () => startCamera('environment'));
+    btnFrontCam.addEventListener('click', () => startCamera('user'));
+    btnStopCam.addEventListener('click', stopCamera);
+
+    btnRecord.addEventListener('click', startRecording);
+    btnStopRecord.addEventListener('click', stopRecording);
+    btnExportCSV.addEventListener('click', exportCSV);
+    btnClear.addEventListener('click', clearPath);
+
+    mirrorPreview.addEventListener('change', updateMirror);
+
+    // Initial UI
+    updateUI();
+    setStatus('Idle. Click Start Camera to begin.');
+  </script>
