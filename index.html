@@ -588,34 +588,30 @@
       }
       updateUI();
     }
-function exportCSV() {
-  if (!trackPoints.length) {
-    setStatus('No tracked points to export.');
-    return;
-  }
+  function exportCSV() {
+    if (!trackPoints.length) {
+      setStatus('No tracked points to export.');
+      return;
+    }
 
-  let csv = 'time_s,x_px,y_px\n';
-  for (const p of trackPoints) {
-    csv += `${p.t.toFixed(6)},${p.x.toFixed(2)},${p.y.toFixed(2)}\n`;
-  }
+    let csv = 'time_s,x_px,y_px\n';
+    for (const p of trackPoints) {
+      csv += `${p.t.toFixed(6)},${p.x.toFixed(2)},${p.y.toFixed(2)}\n`;
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    // Create a temporary anchor and CLICK IT immediately
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'positions.csv';
+    document.body.appendChild(a);
+    a.click();
 
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-
-  // Create a temporary anchor and CLICK IT immediately
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'positions.csv';
-  document.body.appendChild(a);
-  a.click();
-
-  // Cleanup
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  setStatus('CSV downloaded.');
+    // Cleanup
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatus('CSV downloaded.');
 }
-
 
     function updateMirror() {
       const mirrored = mirrorPreview.checked;
