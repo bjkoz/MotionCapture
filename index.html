@@ -123,6 +123,51 @@
       color: var(--text);
       text-decoration: none;
     }
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .app {
+    max-width: 100%;
+    padding: 8px;
+  }
+
+  /* Put video and controls side-by-side */
+  .landscape-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  /* Make video dominant */
+  .video-wrap {
+    aspect-ratio: auto;
+    height: calc(100vh - 16px);
+    max-height: 100%;
+  }
+
+  /* Compact panels */
+  .panel {
+    padding: 8px;
+  }
+
+  .controls .btn {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .status-bar {
+    font-size: 11px;
+  }
+
+  /* Hide nonessential sections */
+  .readout,
+  details.tuning {
+    display: none;
+  }
+}
+
+
+    
   </style>
 
   <div class="app">
@@ -149,10 +194,25 @@
       </div>
     </div>
 
-    <div class="panel video-wrap" id="videoWrap">
-      <video id="video" playsinline="" muted=""></video>
-      <canvas class="overlay" id="overlay"></canvas>
+<div class="landscape-layout">
+  <div class="panel video-wrap" id="videoWrap">
+    <video id="video" playsinline muted></video>
+    <canvas class="overlay" id="overlay"></canvas>
+  </div>
+
+  <div>
+    <div class="panel controls">
+      <!-- existing controls -->
     </div>
+
+    <div class="panel" style="margin-top: 8px;">
+      <div class="readout">
+        <!-- existing readout -->
+      </div>
+    </div>
+  </div>
+</div>
+
 
     <div class="panel" style="margin-top: 12px;">
       <div class="readout">
