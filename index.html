@@ -215,6 +215,7 @@
     let recording = false;
     let mediaRecorder = null;
     let recordedChunks = [];
+    let csvBlobUrl = null;
 
     let analyzing = false;
     let rafId = null;
@@ -285,6 +286,16 @@
       console.log('[status]', text);
     }
 
+    function buildCSVBlob() {
+      if (!trackPoints.length) return null;
+
+      let csv = 'time_s,x_px,y_px\n';
+      for (const p of trackPoints) {
+        csv += `${p.t.toFixed(6)},${p.x.toFixed(2)},${p.y.toFixed(2)}\n`;
+      }
+      return new Blob([csv], { type: 'application/octet-stream' });
+    }
+    
     function updateUI() {
       trackedCountEl.textContent = String(trackPoints.length);
       recStateEl.textContent = recording ? 'Yes' : 'No';
@@ -561,11 +572,12 @@
             const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/mp4' });
             const url = URL.createObjectURL(blob);
             videoDownloadLink.href = url;
-            // Pick a reasonable extension for Safari or Chrome
             const ext = (mediaRecorder.mimeType || '').includes('webm') ? 'webm' : 'mp4';
             videoDownloadLink.download = `yellow-tracker.${ext}`;
             videoDownloadLink.style.display = 'inline-block';
           }
+
+          exportCSV(true); // ✅ auto CSV
         });
 
         mediaRecorder.start(); // default timeslice, full file at stop
@@ -588,32 +600,28 @@
       }
       updateUI();
     }
-function exportCSV() {
-  if (!trackPoints.length) {
-    setStatus('No tracked points to export.');
-    return;
+    
+  function exportCSV(auto = false) {
+    const blob = buildCSVBlob();
+    if (!blob) {
+      if (!auto) setStatus('No tracked points to export.');
+      return;
+    }
+
+    // Clean up old URL
+    if (csvBlobUrl) URL.revokeObjectURL(csvBlobUrl);
+    csvBlobUrl = URL.createObjectURL(blob);
+
+    // Auto-download (Safari-safe)
+    const a = document.createElement('a');
+    a.href = csvBlobUrl;
+    a.download = 'positions.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    if (!auto) setStatus('CSV downloaded.');
   }
-
-  let csv = 'time_s,x_px,y_px\n';
-  for (const p of trackPoints) {
-    csv += `${p.t.toFixed(6)},${p.x.toFixed(2)},${p.y.toFixed(2)}\n`;
-  }
-
-  // IMPORTANT: use octet-stream, not text/csv
-  const blob = new Blob([csv], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'positions.csv'; // extension can still be .csv
-  document.body.appendChild(a);
-  a.click();
-
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
-  setStatus('CSV downloaded.');
-}
 
 
     function updateMirror() {
